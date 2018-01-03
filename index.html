@@ -1,0 +1,284 @@
+<script src="https://npmcdn.com/vue/dist/vue.js"></script>
+
+<style>
+  .versus {
+    display: flex;
+    padding: 10px;
+  }
+
+  .versus .actor {
+    flex-grow: 1;
+    flex-basis: 1px;
+    padding: 10px;
+  }
+
+  .versus .actor h2 {
+    text-align: center;
+  }
+
+  .healthbar {
+    position: relative;
+    background-color: lightgray;
+    color: white;
+    height: 50px;
+    border-radius: 25px;
+    overflow: hidden;
+  }
+
+  .healthbar .value {
+    background-color: green;
+    height: 100%;
+    transition: all linear 500ms;
+  }
+
+  .healthbar .text {
+    position: absolute;
+    top: calc(50% - .5em);
+    left: 1em;
+  }
+
+  .controls {
+    display: flex;
+    justify-content: space-around;
+  }
+
+  .controls .action {
+    width: 100px;
+    background-color: gray;
+    padding: 10px;
+    text-align: center;
+    border-radius: 2px;
+    box-shadow: 1px 1px 1px gray;
+  }
+
+  .controls .action:hover {
+    cursor: pointer;
+    box-shadow: 2px 2px 2px gray;
+  }
+
+  .controls .action.Special,
+  .events .event.Special {
+    background-color: orangered;
+  }
+
+  .controls .action.Attack,
+  .events .event.Attack {
+    background-color: orange;
+  }
+
+  .controls .action.Heal,
+  .events .event.Heal {
+    background-color: green;
+  }
+
+  .events {
+    display: flex;
+    flex-direction: column;
+    margin: 10px;
+  }
+
+  .events .event {
+    padding: 10px;
+    width: 50%;
+    background-color: gray;
+    box-sizing: border-box;
+    border: 1px solid white;
+  }
+
+  .events .event.hero {
+    text-align: right;
+    align-self: flex-start
+  }
+
+  .events .event.monster {
+    text-align: left;
+    align-self: flex-end;
+  }
+
+  .winner {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .winner .headline.monster {
+    color: red;
+  }
+
+  .winner .headline.hero {
+    color: green;
+  }
+</style>
+
+<div id="monster-slayer">
+  <template v-if="!winner">
+      <div class="versus">
+          <div class="actor hero">
+              <h2>Hero</h2>
+              <div class="healthbar">
+                <div class="value" :style="{width: heroHealth + '%'}"></div>
+                <span class="text">{{heroHealth}}/100</span>
+              </div>
+          </div>
+          <div class="actor monster">
+              <h2>Monster</h2>
+              <div class="healthbar">
+                <div class="value" :style="{width: monsterHealth + '%'}"></div>
+                <span class="text">{{monsterHealth}}/100</span>
+              </div>
+          </div>
+        </div>
+        <div class="controls">
+          <template v-if="running">
+            <div class="action" v-for="action in actions" :class="action.split(' ')[0]" @click="perform(action)">
+              {{action}}
+            </div>
+          </template>
+          <template v-else>
+            <div class="action" @click="running = true">
+              Start Game
+            </div>
+          </template>
+        </div>
+        <div class="events" v-if="events.length !== 0">
+          <div class="event" v-for="event in reversed" :class='[event.actor, event.action.split(" ")[0]]'>
+            {{event.actor}} performs {{event.action}} for {{event.hitpoints}}
+          </div>
+        </div>
+  </template>
+  <div class="winner" v-else>
+    <div class="headline" :class="winner">
+      <h2>
+          {{winner.toUpperCase()}} WON!
+      </h2>
+    </div>
+    <div>
+      <div class="controls">
+        <div class="action" @click="reset">
+          Reset
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  const ATTACK = 'Attack';
+  const SPECIAL_ATTACK = 'Special Attack';
+  const HEAL = 'Heal';
+  const GIVE_UP = 'Give Up';
+  const HERO = 'hero';
+  const MONSTER = 'monster';
+  const SPECIAL_ATTACK_MODIFIER = 1.5;
+  const SPECIAL_ATTACK_DELAY = 3;
+  const HERO_ATTACK_FACTOR = 10;
+  const HERO_HEAL_FACTOR = 15;
+  const MONSTER_ATTACK_FACTOR = 12.5;
+  new Vue({
+  el: '#monster-slayer',
+  data: {
+    running: false,
+    actions: [ATTACK, SPECIAL_ATTACK, HEAL, GIVE_UP],
+    events: [],
+    monsterHealth: 100,
+    heroHealth: 100,
+    specialAttackDelayed: 0
+  },
+  methods: {
+    perform(action, actor = HERO) {
+      if (action === SPECIAL_ATTACK && this.specialAttackDelayed > 0) {
+        return;
+      }
+      this.events.push({
+        action,
+        actor,
+        hitpoints: this.calculateDamage(actor, action)
+      });
+    },
+    calculateDamage(actor, action) {
+      let base = Math.random()
+      if (actor === HERO) {
+        if (action === ATTACK) {
+          base *= HERO_ATTACK_FACTOR
+        } else if (action === SPECIAL_ATTACK) {
+          base *= (HERO_ATTACK_FACTOR * SPECIAL_ATTACK_MODIFIER)
+        } else if (action === HEAL) {
+          base *= HERO_HEAL_FACTOR
+        }
+      } else if (actor === MONSTER) {
+          base *= MONSTER_ATTACK_FACTOR
+      }
+      base = Math.floor(base)
+      if (base === 0) {
+        base++ // the monster cannot miss
+      }
+      return base;
+    },
+    reset() {
+      this.events = [];
+      this.running = false;
+      this.heroHealth = 100;
+      this.monsterHealth = 100;
+      this.specialAttackDelayed = 0;
+    },
+    actorHealth(actor) {
+      return actor === 'hero' ? heroHealth : monsterHealth;
+    },
+    actorHealthbarWidth(actor) {
+      return this.actorHealth(actor) + 'px';
+    }
+  },
+  computed: {
+    reversed () {
+      return [].concat(this.events).reverse();
+    },
+    winner () {
+      if (this.monsterHealth === 0) {
+        return HERO
+      } else if (this.heroHealth === 0) {
+        return MONSTER
+      }
+      return null
+    }
+  }, 
+  watch: {
+    "events" (events) {
+      if (events.length === 0) {
+        return;
+      }
+      const {actor, action, hitpoints} = events[events.length-1]
+      if (actor === HERO) {
+        switch (action) {
+          case SPECIAL_ATTACK:
+            this.specialAttackDelayed = SPECIAL_ATTACK_DELAY;
+          case ATTACK:
+            this.monsterHealth -= hitpoints;
+            break;
+          case HEAL:
+            this.heroHealth += hitpoints;
+            break;
+          case GIVE_UP:
+            this.reset()
+            return;
+        }
+        this.perform(ATTACK, MONSTER);
+      } else {
+        if (action === ATTACK) {
+          this.heroHealth -= hitpoints
+        }
+        if (this.specialAttackDelayed > 0) {
+          this.specialAttackDelayed--
+        }
+      }
+      if (this.monsterHealth <= 0) {
+        this.monsterHealth = 0
+      }
+      if (this.heroHealth <= 0) {
+        this.heroHealth = 0
+      }
+    }
+  }
+});
+</script>
